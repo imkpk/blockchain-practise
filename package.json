@@ -1,0 +1,19 @@
+{
+  "name": "bchain",
+  "version": "1.0.0",
+  "description": "creating blockchain project",
+  "main": "dev/api.js",
+  "scripts": {
+    "start": "nodemon --watch dev -e js dev/api.js"
+  },
+  "author": "Pratibha Kumar",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.17.1",
+    "sha256": "^0.2.0",
+    "uuid": "^8.3.2"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.14"
+  }
+}
