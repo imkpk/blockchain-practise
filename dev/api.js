@@ -4,12 +4,12 @@ const app = express();
 const {v4: uuid} = require('uuid');
 app.use(express.json());
 
+const port = process.argv[2];
 //node address
 const nodeAddress = uuid().split('-').join('');
 
 const Blockchain = require('./blockchain');
 const bitcoin = new Blockchain();
-
 
 //end points
 app.get('/blockchain', ( req, res ) => {
@@ -51,4 +51,22 @@ app.get('/mine', ( req, res ) => {
       .json({note: `New block mined Successfully`, blockHash: newBlock});
 });
 
-app.listen(3000, () => console.log(`server is running on port 3000...`));
+//it will register and broadcast that entire node.
+app.post('/register-and-broadcast-node', ( req, res ) => {
+const newNodeUrl=req.body;
+res.send(`register-and-broadcast-node`)
+});
+
+app.post('/register-node', ( req, res ) => {
+// const newNodeUrl=req.body;
+  res.send(`register-node`)
+});
+
+app.post('/register-nodes-bulk', ( req, res ) => {
+// const newNodeUrl=req.body;
+  res.send(`register-node-bulk`)
+});
+
+
+
+app.listen(port, () => console.log(`server is running on port ${port}...`));
