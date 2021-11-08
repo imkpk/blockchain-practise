@@ -2,18 +2,21 @@
   "name": "bchain",
   "version": "1.0.0",
   "description": "creating blockchain project",
-  "main": "dev/api.js",
+  "main": "dev/networkNode.js",
   "scripts": {
-    "node_1": "nodemon --watch dev -e js dev/api.js 3001 http://localhost:3001",
-    "node_2": "nodemon --watch dev -e js dev/api.js 3002 http://localhost:3002",
-    "node_3": "nodemon --watch dev -e js dev/api.js 3003 http://localhost:3003",
-    "node_4": "nodemon --watch dev -e js dev/api.js 3004 http://localhost:3004",
-    "node_5": "nodemon --watch dev -e js dev/api.js 3005 http://localhost:3005"
+    "node_1": "nodemon --watch dev -e js dev/networkNode.js 3001 http://localhost:3001",
+    "node_2": "nodemon --watch dev -e js dev/networkNode.js 3002 http://localhost:3002",
+    "node_3": "nodemon --watch dev -e js dev/networkNode.js 3003 http://localhost:3003",
+    "node_4": "nodemon --watch dev -e js dev/networkNode.js 3004 http://localhost:3004",
+    "node_5": "nodemon --watch dev -e js dev/networkNode.js 3005 http://localhost:3005"
   },
   "author": "Pratibha Kumar",
   "license": "ISC",
   "dependencies": {
     "express": "^4.17.1",
+    "express-async-errors": "^3.1.1",
+    "express-error-handler": "^1.1.0",
+    "request-promise": "^4.2.6",
     "sha256": "^0.2.0",
     "uuid": "^8.3.2"
   },
