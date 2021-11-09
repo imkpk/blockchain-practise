@@ -30,7 +30,6 @@ const requestPromise = require('request-promise');
 
 const notFound = require('./middleware/not-fount');
 const asyncWrapper = require('./middleware/asyncWrapper');
-const uncaughtException = require('./middleware/uncaughtError');
 
 const bitcoin = new Blockchain();
 
@@ -103,67 +102,109 @@ app.get('/mine', (req, res) => {
     nonce
   );
 
-  bitcoin.createNewTransactions(12.5, '00', nodeAddress);
+  // bitcoin.createNewTransactions(12.5, '00', nodeAddress);
   const newBlock = bitcoin.createNewBlock(nonce, previousBlockHash, blockHash);
+  const requestPromises = [];
+  bitcoin.netwokNodes.forEach((networkNodeUrl) => {
+    const requestOptions = {
+      uri: networkNodeUrl + '/receive-new-block',
+      method: 'POST',
+      body: { newBlock: newBlock },
+      json: true,
+    };
+    requestPromises.push(rp(requestOptions));
+  });
 
-  res
-    .status(200)
-    .json({ note: `New block mined Successfully`, blockHash: newBlock });
+  Promise.all(requestPromises).then((data) => {
+    const requestOptions = {
+      uri: bitcoin.currentNodeUrl + '/transaction/broadcast',
+      method: 'POST',
+      body: { amount: 12.5, sender: '00', recipient: nodeAddress },
+      json: true,
+    };
+    return rp(requestOptions);
+  }).then((data) => {
+    res.json({
+      note: 'New block mined and broadcast successfully',
+      block: newBlock,
+    });
+  })
 });
+
+app.post('/receive-new-block', async (req, res) => {
+  const newBlock = req.body.newBlock;
+  const lastBlock = bitcoin.getLastBlock();
+  const correctHash = lastBlock['hash'] === newBlock['previousBlockHash'];
+  const correctIndex = lastBlock['index'] + 1 === newBlock['index'];
+  if (correctHash && correctIndex) {
+    bitcoin.chain.push(newBlock);
+    bitcoin.pendingTransactions = [];
+    res.json({
+      note: 'New block received and accepted',
+      newBlock: newBlock,
+    });
+  } else {
+    res.json({
+      note: 'New block rejected',
+      newBlock: newBlock,
+    });
+  }
+})
+
 
 //it will register and broadcast that entire node.
 app.post('/register-and-broadcast-node', async (req, res, next) => {
-    const { newNodeUrl } = await req.body;
-    // console.log(newNodeUrl);
-    if (bitcoin.netwokNodes.indexOf(newNodeUrl) === -1) {
-      bitcoin.netwokNodes.push(newNodeUrl);
-    }
-    const valueIsNotInArry = urlObj.indexOf(newNodeUrl) === -1;
-    const registerNodesPromises = [];
-    bitcoin.netwokNodes.forEach((networkNodeUrl) => {
-      //  register node endpoint
-      const requestOptions = {
-        uri: networkNodeUrl + `/register-node`,
+  const { newNodeUrl } = await req.body;
+  // console.log(newNodeUrl);
+  if (bitcoin.netwokNodes.indexOf(newNodeUrl) === -1) {
+    bitcoin.netwokNodes.push(newNodeUrl);
+  }
+  const valueIsNotInArry = urlObj.indexOf(newNodeUrl) === -1;
+  const registerNodesPromises = [];
+  bitcoin.netwokNodes.forEach((networkNodeUrl) => {
+    //  register node endpoint
+    const requestOptions = {
+      uri: networkNodeUrl + `/register-node`,
+      method: 'POST',
+      body: { newNodeUrl: newNodeUrl },
+      json: true,
+    };
+    registerNodesPromises.push(rp(requestOptions));
+  });
+  // registerNodesPromises.forEach(async (p) => {
+  //   // console.log(p);
+  //   // console.log(body);
+  //   const bulkRegisterOptions = await {
+  //     uri: newNodeUrl + `/register-nodes-bulk`,
+  //     method: 'POST',
+  //     body: {
+  //       allNetworkNodes: [...bitcoin.netwokNodes, bitcoin.currentNodeUrl],
+  //     },
+  //     json: true,
+  //   };
+  //   console.log(bulkRegisterOptions);
+
+  //
+  //     return await rp(bulkRegisterOptions);
+  // });
+
+  // res.json({ note: `new node registered successfully` });
+
+  Promise.all(registerNodesPromises)
+    .then((data) => {
+      const bulkRegisterOptions = {
+        uri: newNodeUrl + `/register-nodes-bulk`,
         method: 'POST',
-        body: { newNodeUrl: newNodeUrl },
+        body: {
+          allNetworkNodes: [...bitcoin.netwokNodes, bitcoin.currentNodeUrl],
+        },
         json: true,
       };
-      registerNodesPromises.push(rp(requestOptions));
+      return rp(bulkRegisterOptions);
+    })
+    .then((data) => {
+      res.json({ note: `new node registered successfully` });
     });
-    // registerNodesPromises.forEach(async (p) => {
-    //   // console.log(p);
-    //   // console.log(body);
-    //   const bulkRegisterOptions = await {
-    //     uri: newNodeUrl + `/register-nodes-bulk`,
-    //     method: 'POST',
-    //     body: {
-    //       allNetworkNodes: [...bitcoin.netwokNodes, bitcoin.currentNodeUrl],
-    //     },
-    //     json: true,
-    //   };
-    //   console.log(bulkRegisterOptions);
-
-    //   
-    //     return await rp(bulkRegisterOptions);
-    // });
-
-    // res.json({ note: `new node registered successfully` });
-
-    Promise.all(registerNodesPromises)
-      .then((data) => {
-        const bulkRegisterOptions = {
-          uri: newNodeUrl + `/register-nodes-bulk`,
-          method: 'POST',
-          body: {
-            allNetworkNodes: [...bitcoin.netwokNodes, bitcoin.currentNodeUrl],
-          },
-          json: true,
-        };
-        return rp(bulkRegisterOptions);
-      })
-      .then((data) => {
-        res.json({ note: `new node registered successfully` });
-      });
 });
 
 //register/subscribe a node with the network
@@ -195,6 +236,5 @@ app.post('/register-nodes-bulk', (req, res) => {
 //error handloing
 app.use(notFound);
 app.use(asyncWrapper);
-app.use(uncaughtException)
 
 app.listen(port, () => console.log(`server is running on port ${port}...`));
