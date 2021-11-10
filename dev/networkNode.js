@@ -1,71 +1,56 @@
+// noinspection UnnecessaryLocalVariableJS
+
 const express = require('express');
-require('express-async-errors');
 const app = express();
 // const uuid=require('uuid')
-const { v4: uuid } = require('uuid');
+const {v4: uuid} = require('uuid');
 app.use(express.json());
 const port = process.argv[2];
 // const urlsPresent = process.argv[3];
-const { argv, nextTick } = require('process');
-const { scripts } = require('../package.json');
-
+const {scripts} = require('../package.json');
 const someKeys = Object.values(scripts);
 const urlObj = [];
-
-someKeys.forEach((element) => {
+someKeys.forEach(( element ) => {
   const urlAllIn = element.split(' ')[7];
   urlObj.push(urlAllIn);
   return urlAllIn;
-
-  // element.slice(-21)
 });
-// console.log(urlObj);
 
-// console.log(urlAll);
 const rp = require('request-promise');
 //node address
 const nodeAddress = uuid().split('-').join('');
 const Blockchain = require('./blockchain');
-const requestPromise = require('request-promise');
-
-const notFound = require('./middleware/not-fount');
-const asyncWrapper = require('./middleware/asyncWrapper');
-
+require('./middleware/not-fount');
+require('./middleware/asyncWrapper');
 const bitcoin = new Blockchain();
 
 // console.log(argv);
 // Middleware
 
 //end points
-app.get('/blockchain', (req, res) => {
+app.get('/blockchain', ( req, res ) => {
   res.send(bitcoin);
 });
 
-app.post('/transaction', async (req, res) => {
-  // console.log(req.body);
-  // const { amount, sender, recipient } = req.body;
-  // const blockIndex = bitcoin.createNewTransactions(amount, sender, recipient);
-  // res
-  //   .status(200)
-  //   .json({ note: `Transaction will be added in block ${blockIndex}` });
+app.post('/transaction', async ( req, res ) => {
 
   const newTransaction = await req.body;
   const blockIndex =
-    bitcoin.addTransactionsToPendingTransactions(newTransaction);
-  res.json({ note: `Transaction will be added in block ${blockIndex}` });
+      bitcoin.addTransactionsToPendingTransactions(newTransaction);
+  res.json({note: `Transaction will be added in block ${blockIndex}`});
 });
 
 //creating transaction broadcasting it to other nodes in decentralized network
-app.post('/transaction/brodcast', (req, res) => {
-  const { amount, sender, recipient } = req.body;
+app.post('/transaction/broadcast', ( req, res ) => {
+  const {amount, sender, recipient} = req.body;
   const newTransaction = bitcoin.createNewTransactions(
-    amount,
-    sender,
-    recipient
+      amount,
+      sender,
+      recipient,
   );
   bitcoin.addTransactionsToPendingTransactions(newTransaction);
-  const requestPromises = [];
-  bitcoin.netwokNodes.forEach((networkNodeUrl) => {
+  let requestPromises = [];
+  bitcoin.netwokNodes.forEach(( networkNodeUrl ) => {
     const requestOptions = {
       uri: networkNodeUrl + '/transaction',
       method: 'POST',
@@ -74,20 +59,18 @@ app.post('/transaction/brodcast', (req, res) => {
     };
     requestPromises.push(rp(requestOptions));
   });
-  Promise.all(requestPromises).then((data) => {
-    res.json({ note: 'Transaction brodcasted successfully' });
+  Promise.all(requestPromises).then(() => {
+    res.json({note: 'Transaction broadcast successfully'});
   });
 });
 
-app.get('/mine', (req, res) => {
+app.get('/mine', ( req, res ) => {
   /** to get the previous block hash and nonce and hash for to create new
    *  block we need to get the lastBlock, hash of lastBlock is previousBlockHash
    *  to get nonce we need to write POW which return nonce
    *  */
   const lastBlock = bitcoin.getLastBlock();
-  console.log(lastBlock);
   const previousBlockHash = lastBlock['hash'];
-  console.log(previousBlockHash);
   //getting nonce
   //current block data
   const currentBlockData = {
@@ -97,41 +80,41 @@ app.get('/mine', (req, res) => {
   const nonce = bitcoin.proofOfWork(previousBlockHash, currentBlockData);
   //hash
   const blockHash = bitcoin.hashBlock(
-    previousBlockHash,
-    currentBlockData,
-    nonce
+      previousBlockHash,
+      currentBlockData,
+      nonce,
   );
 
-  // bitcoin.createNewTransactions(12.5, '00', nodeAddress);
   const newBlock = bitcoin.createNewBlock(nonce, previousBlockHash, blockHash);
-  const requestPromises = [];
-  bitcoin.netwokNodes.forEach((networkNodeUrl) => {
+
+  let requestPromises = [];
+  bitcoin.netwokNodes.forEach(networkNodeUrl => {
     const requestOptions = {
       uri: networkNodeUrl + '/receive-new-block',
       method: 'POST',
-      body: { newBlock: newBlock },
+      body: {newBlock: newBlock},
       json: true,
     };
     requestPromises.push(rp(requestOptions));
   });
 
-  Promise.all(requestPromises).then((data) => {
+  Promise.all(requestPromises).then(() => {
     const requestOptions = {
       uri: bitcoin.currentNodeUrl + '/transaction/broadcast',
       method: 'POST',
-      body: { amount: 12.5, sender: '00', recipient: nodeAddress },
+      body: {amount: 12.5, sender: '00', recipient: nodeAddress},
       json: true,
     };
     return rp(requestOptions);
-  }).then((data) => {
+  }).then(() => {
     res.json({
       note: 'New block mined and broadcast successfully',
       block: newBlock,
     });
-  })
+  });
 });
 
-app.post('/receive-new-block', async (req, res) => {
+app.post('/receive-new-block', async ( req, res ) => {
   const newBlock = req.body.newBlock;
   const lastBlock = bitcoin.getLastBlock();
   const correctHash = lastBlock['hash'] === newBlock['previousBlockHash'];
@@ -149,92 +132,114 @@ app.post('/receive-new-block', async (req, res) => {
       newBlock: newBlock,
     });
   }
-})
-
+});
 
 //it will register and broadcast that entire node.
-app.post('/register-and-broadcast-node', async (req, res, next) => {
-  const { newNodeUrl } = await req.body;
-  // console.log(newNodeUrl);
+app.post('/register-and-broadcast-node', async ( req, res ) => {
+  const newNodeUrl = await req.body.newNodeUrl;
   if (bitcoin.netwokNodes.indexOf(newNodeUrl) === -1) {
     bitcoin.netwokNodes.push(newNodeUrl);
   }
-  const valueIsNotInArry = urlObj.indexOf(newNodeUrl) === -1;
-  const registerNodesPromises = [];
-  bitcoin.netwokNodes.forEach((networkNodeUrl) => {
+  let registerNodesPromises = [];
+  bitcoin.netwokNodes.forEach(( networkNodeUrl ) => {
     //  register node endpoint
     const requestOptions = {
       uri: networkNodeUrl + `/register-node`,
       method: 'POST',
-      body: { newNodeUrl: newNodeUrl },
+      body: {newNodeUrl: newNodeUrl},
       json: true,
     };
     registerNodesPromises.push(rp(requestOptions));
   });
-  // registerNodesPromises.forEach(async (p) => {
-  //   // console.log(p);
-  //   // console.log(body);
-  //   const bulkRegisterOptions = await {
-  //     uri: newNodeUrl + `/register-nodes-bulk`,
-  //     method: 'POST',
-  //     body: {
-  //       allNetworkNodes: [...bitcoin.netwokNodes, bitcoin.currentNodeUrl],
-  //     },
-  //     json: true,
-  //   };
-  //   console.log(bulkRegisterOptions);
-
-  //
-  //     return await rp(bulkRegisterOptions);
-  // });
-
-  // res.json({ note: `new node registered successfully` });
 
   Promise.all(registerNodesPromises)
-    .then((data) => {
-      const bulkRegisterOptions = {
-        uri: newNodeUrl + `/register-nodes-bulk`,
-        method: 'POST',
-        body: {
-          allNetworkNodes: [...bitcoin.netwokNodes, bitcoin.currentNodeUrl],
-        },
-        json: true,
-      };
-      return rp(bulkRegisterOptions);
-    })
-    .then((data) => {
-      res.json({ note: `new node registered successfully` });
-    });
+      .then(() => {
+        const bulkRegisterOptions = {
+          uri: newNodeUrl + `/register-nodes-bulk`,
+          method: 'POST',
+          body: {
+            allNetworkNodes: [...bitcoin.netwokNodes, bitcoin.currentNodeUrl],
+          },
+          json: true,
+        };
+        return rp(bulkRegisterOptions);
+      })
+      .then(() => {
+        res.json({note: `new node registered successfully`});
+      });
 });
 
 //register/subscribe a node with the network
-app.post('/register-node', (req, res) => {
-  const { newNodeUrl } = req.body;
+app.post('/register-node', ( req, res ) => {
+  const {newNodeUrl} = req.body;
   const nodeNotAlreadyPresent = bitcoin.netwokNodes.indexOf(newNodeUrl) === -1;
   const notCurrentNode = bitcoin.currentNodeUrl !== newNodeUrl;
   if (nodeNotAlreadyPresent && notCurrentNode) {
     bitcoin.netwokNodes.push(newNodeUrl);
   }
-  res.json({ note: `New node registered successfully` });
+  res.json({note: `New node registered successfully`});
 });
 
 //register multiple nodes at once
-app.post('/register-nodes-bulk', (req, res) => {
+app.post('/register-nodes-bulk', ( req, res ) => {
   const allNetworkNodes = req.body.allNetworkNodes;
-  allNetworkNodes.forEach((networkNodeUrl) => {
+  allNetworkNodes.forEach(( networkNodeUrl ) => {
     //..
     const nodeAlreadyPresent =
-      bitcoin.netwokNodes.indexOf(networkNodeUrl) === -1;
+        bitcoin.netwokNodes.indexOf(networkNodeUrl) === -1;
     const notCurrentNode = bitcoin.currentNodeUrl !== networkNodeUrl;
     if (nodeAlreadyPresent && notCurrentNode) {
       bitcoin.netwokNodes.push(networkNodeUrl);
     }
   });
-  res.json({ note: `bulk registration successful` });
+  res.json({note: `bulk registration successful`});
 });
 
-//error handloing
-app.use(notFound);
-app.use(asyncWrapper);
+// consensus
+app.get('/consensus', function( req, res ) {
+  const requestPromises = [];
+  bitcoin.netwokNodes.forEach(networkNodeUrl => {
+    console.log(networkNodeUrl);
+    const requestOptions = {
+      uri: networkNodeUrl + '/blockchain',
+      method: 'GET',
+      json: true,
+    };
+
+    requestPromises.push(rp(requestOptions));
+  });
+
+  Promise.all(requestPromises)
+      .then(blockchains => {
+        const currentChainLength = bitcoin.chain.length;
+        let maxChainLength = currentChainLength;
+        let newLongestChain = null;
+        let newPendingTransactions = null;
+
+        blockchains.forEach(blockchain => {
+          if (blockchain.chain.length > maxChainLength) {
+            maxChainLength = blockchain.chain.length;
+            newLongestChain = blockchain.chain;
+            newPendingTransactions = blockchain.pendingTransactions;
+          }
+        });
+        if (!newLongestChain ||
+            ( newLongestChain && !bitcoin.chainIsValid(newLongestChain) ))
+        {
+          res.json({
+            note: 'Current chain has not been replaced.',
+            chain: bitcoin.chain,
+          });
+        } else {
+          bitcoin.chain = newLongestChain;
+          bitcoin.pendingTransactions = newPendingTransactions;
+          res.json({
+            note: 'This chain has been replaced.',
+            chain: bitcoin.chain,
+          });
+        }
+      });
+});
+
 
 app.listen(port, () => console.log(`server is running on port ${port}...`));
